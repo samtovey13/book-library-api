@@ -6,10 +6,12 @@ const app = require('../src/app');
 
 describe('/readers', () => {
   before(async () => Reader.sequelize.sync());
+  beforeEach(async () => Reader.destroy({ where: {} }));
 
   describe('with no records in the database', () => {
     describe('POST /readers', () => {
       it('creates a new reader in the database', async () => {
+        const readers = await request(app).get('/readers');
         const response = await request(app).post('/readers').send({
           name: 'Elizabeth Bennet',
           email: 'future_ms_darcy@gmail.com',
@@ -25,6 +27,63 @@ describe('/readers', () => {
         expect(newReaderRecord.email).to.equal('future_ms_darcy@gmail.com');
         expect(newReaderRecord.password).to.equal('secret-password');
       });
+
+      it('throws an error if any fields are empty', async () => {
+        const response = await request(app).post('/readers').send({
+          name: '',
+          email: '',
+          password: '',
+        });
+        
+        expect(response.status).to.equal(404);
+        expect(response.body.error).to.include.members(
+          [
+            'Name cannot be empty',
+            'Email cannot be empty',
+            'Password cannot be empty',
+          ]
+        );
+      });
+
+      it('validates reader name on creation', async () => {
+        const response = await request(app).post('/readers').send({
+          name: [1, 2, 3],
+          email: 'array@gmail.com',
+          password: 'array-password',
+        });
+        
+        expect(response.status).to.equal(404);
+        expect(response.body.error).to.include.members(
+          ['name cannot be an array or an object']
+        );
+      });
+
+      it('validates reader password on creation', async () => {
+        const response = await request(app).post('/readers').send({
+          name: 'Mr Bad Password',
+          email: 'badpassword@hotmail.com',
+          password: '1',
+        });
+        
+        expect(response.status).to.equal(404);
+        expect(response.body.error).to.include.members(
+          ['Password must have at least 8 characters']
+        );
+      })
+
+      it('validates reader email on creation', async () => {
+        const response = await request(app).post('/readers').send({
+          name: 'Lady No-Email',
+          email: 'not.an.email',
+          password: 'secret-password',
+        });
+        
+        expect(response.status).to.equal(404);
+        expect(response.body.error).to.include.members(
+          ['Not a valid email']
+        );
+      })
+
     });
   });
 
@@ -103,6 +162,21 @@ describe('/readers', () => {
         expect(response.status).to.equal(404);
         expect(response.body.error).to.equal('The reader could not be found.');
       });
+
+      it('returns a 404 if the new data is not validated', async () => {
+        const reader = readers[0];
+        const originalEmail = reader.email;
+        const response = await request(app)
+          .patch(`/readers/${reader.id}`)
+          .send({ email: 'iAmNotAnEmail' });
+        const updatedReaderRecord = await Reader.findByPk(reader.id, {
+          raw: true,
+        });
+
+        expect(response.status).to.equal(404);
+        expect(response.body.error).to.include.members(['Not a valid email'])
+        expect(updatedReaderRecord.email).to.equal(originalEmail);
+      })
     });
 
     describe('DELETE /readers/:id', () => {

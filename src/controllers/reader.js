@@ -11,7 +11,11 @@ const createReader = (req, res) => {
 
   Reader
     .create(newReader)
-    .then(newReaderCreated => res.status(201).json(newReaderCreated));
+    .then(newReaderCreated => res.status(201).json(newReaderCreated))
+    .catch((error) => {
+      const errorMessages = error.errors.map((e) => e.message);
+      return res.status(404).json({ error: errorMessages});
+    });
 }
 
 const updateReader = (req, res) => {
@@ -24,13 +28,18 @@ const updateReader = (req, res) => {
       if (!recordsUpdated) {
         res.status(404).json({ error: 'The reader could not be found.' });
     } else {
-      Reader.findByPk(id).then((updatedReader) => {
-        res
-        .status(200)
-        .json(updatedReader);
-    }
-      )}
-  });
+      Reader
+        .findByPk(id)
+        .then((updatedReader) => {
+          res
+          .status(200)
+          .json(updatedReader);
+        })  
+    }})
+    .catch((error) => {
+    const errorMessages = error.errors.map((e) => e.message);
+    return res.status(404).json({ error: errorMessages});
+  });;
 }
 
 const getReaderById = (req, res) => {
