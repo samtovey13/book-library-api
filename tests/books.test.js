@@ -6,6 +6,7 @@ const app = require('../src/app');
 
 describe('/books', () => {
   before(async () => Book.sequelize.sync());
+  beforeEach(async () => Book.destroy({ where: {} }));
 
   describe('with no records in the database', () => {
     describe('POST /books', () => {
@@ -26,6 +27,36 @@ describe('/books', () => {
         expect(newBookRecord.author).to.equal('Ian Rankin');
         expect(newBookRecord.genre).to.equal('crime');
         expect(newBookRecord.ISBN).to.equal(9781409176978);
+      });
+
+      it('throws an error if title or author is empty', async () => {
+        const response = await request(app).post('/books').send({
+          title: '',
+          author: '',
+          genre: '',
+          ISBN: '',
+        });
+        expect(response.status).to.equal(404);
+        expect(response.body.error).to.include.members(
+          [
+            'Title cannot be empty',
+            'Author cannot be empty'
+          ]
+        );
+      });
+
+      it('validates title on creation', async () => {
+        const response = await request(app).post('/books').send({
+          title: [1, 2, 3],
+          author: { name: 'Bill', dob: 1983 }
+        });
+        expect(response.status).to.equal(404);
+        expect(response.body.error).to.include.members(
+          [
+            'title cannot be an array or an object',
+            'author cannot be an array or an object'
+          ]
+        );
       });
     });
   });
@@ -118,6 +149,21 @@ describe('/books', () => {
         expect(response.status).to.equal(404);
         expect(response.body.error).to.equal('The book could not be found.');
       });
+
+      it('returns a 404 if the new data is not validated', async () => {
+        const book = books[0];
+        const originalTitle = book.title;
+        const response = await request(app)
+          .patch(`/books/${book.id}`)
+          .send({ title: '' });
+        const updatedBookRecord = await Book.findByPk(book.id, {
+          raw: true,
+        });
+
+        expect(response.status).to.equal(404);
+        expect(response.body.error).to.include.members(['Title cannot be empty'])
+        expect(updatedBookRecord.title).to.equal(originalTitle);
+      })
     });
 
     describe('DELETE /books/:id', () => {
