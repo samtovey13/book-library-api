@@ -10,10 +10,18 @@ const getModel = (model) => {
 
 const get404Error = (model) => ({ error: `The ${model} could not be found.`});
 
+const removePassword = (obj) => {
+  if (obj.hasOwnProperty('password')) {
+    delete obj.password;
+  }
+  return obj;
+};
+
 const getItems = (res, model) => {
   const Model = getModel(model);
   Model.findAll().then(items => {
-    res.status(200).json(items);
+    const itemsWithoutPassword = items.map((item) => removePassword(item.dataValues));
+    res.status(200).json(itemsWithoutPassword);
   });
 }
 
@@ -22,7 +30,10 @@ const createItem = (res, model, item) => {
 
   Model
     .create(item)
-    .then(newItemCreated => res.status(201).json(newItemCreated))
+    .then(newItem => {
+      const itemWithoutPassword = removePassword(newItem.dataValues);
+      res.status(201).json(itemWithoutPassword)
+    })
     .catch((error) => {
       const errorMessages = error.errors.map((e) => e.message);
       return res.status(404).json({ error: errorMessages});
@@ -39,7 +50,8 @@ const updateItem = (res, model, item, id) => {
         res.status(404).json(get404Error(model));
     } else {
       Model.findByPk(id).then((updatedRecord) => {
-        res.status(200).json(updatedRecord);
+        const itemWithoutPassword = removePassword(updatedRecord.dataValues);
+        res.status(200).json(itemWithoutPassword);
       })}
     })
     .catch((error) => {
@@ -55,7 +67,8 @@ const getItemById = (res, model, id) => {
     if (!item) {
       res.status(404).json(get404Error(model));
     } else {
-      res.status(200).json(item);
+      const itemWithoutPassword = removePassword(item.dataValues);
+      res.status(200).json(itemWithoutPassword);
     }
   });
 }
