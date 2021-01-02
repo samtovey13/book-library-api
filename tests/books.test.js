@@ -1,32 +1,44 @@
 /* eslint-disable no-console */
 const { expect } = require('chai');
 const request = require('supertest');
-const { Book } = require('../src/models');
+const { Book, Genre } = require('../src/models');
 const app = require('../src/app');
 
 describe('/books', () => {
-  before(async () => Book.sequelize.sync());
-  beforeEach(async () => Book.destroy({ where: {} }));
+  
+  before(async () => {
+    try {
+      await Book.sequelize.sync();
+      await Genre.sequelize.sync();
+    } catch (err) {
+      console.log(err);
+    }
+  });
+
+
 
   describe('with no records in the database', () => {
     describe('POST /books', () => {
       it('creates a new book in the database', async () => {
+        const genre = await Genre.create({
+          genre: 'crime',
+        });
+
         const response = await request(app).post('/books').send({
           title: 'A Song for the Dark Times',
           author: 'Ian Rankin',
-          genre: 'crime',
           ISBN: 9781409176978,
         });
-        const newBookRecord = await Book.findByPk(response.body.id, {
-          raw: true,
-        });
 
+        const newBookRecord = await Book.findByPk(response.body.id)
+        .then(book => book.setGenre(genre));
+        
         expect(response.status).to.equal(201);
         expect(response.body.title).to.equal('A Song for the Dark Times');
         expect(newBookRecord.title).to.equal('A Song for the Dark Times');
         expect(newBookRecord.author).to.equal('Ian Rankin');
-        expect(newBookRecord.genre).to.equal('crime');
         expect(newBookRecord.ISBN).to.equal(9781409176978);
+        expect(newBookRecord.GenreId).to.equal(genre.id);
       });
 
       it('throws an error if title or author is empty', async () => {
@@ -36,7 +48,7 @@ describe('/books', () => {
           genre: '',
           ISBN: '',
         });
-        expect(response.status).to.equal(404);
+        expect(response.status).to.equal(400);
         expect(response.body.error).to.include.members(
           [
             'Title cannot be empty',
@@ -50,7 +62,7 @@ describe('/books', () => {
           title: [1, 2, 3],
           author: { name: 'Bill', dob: 1983 }
         });
-        expect(response.status).to.equal(404);
+        expect(response.status).to.equal(400);
         expect(response.body.error).to.include.members(
           [
             'title cannot be an array or an object',
@@ -63,30 +75,48 @@ describe('/books', () => {
 
   describe('with records in the database', () => {
     let books;
+    let genres;
 
     beforeEach(async () => {
-      await Book.destroy({ where: {} });
+      try {
+        await Book.destroy({ where: {} });
+        await Genre.destroy({ where: {} });
 
-      books = await Promise.all([
-        Book.create({
-          title: 'A Song for the Dark Times',
-          author: 'Ian Rankin',
-          genre: 'crime',
-          ISBN: 9781409176978,
-        }),
-        Book.create({ 
-          title: 'A Promised Land',
-          author: 'Barack Obama',
-          genre: 'autobiography',
-          ISBN: 9780241491515,
-         }),
-        Book.create({ 
-          title: 'The Ickabog',
-          author: 'J. K. Rowling',
-          genre: 'fiction',
-          ISBN: 9781510202252,
-        }),
-      ]);
+        genres = await Promise.all([
+          Genre.create({
+            genre: 'crime'
+          }),
+          Genre.create({
+            genre: 'autobiography'
+          }),
+          Genre.create({
+            genre: 'fiction'
+          })
+        ]);
+
+        books = await Promise.all([
+          Book.create({
+            title: 'A Song for the Dark Times',
+            author: 'Ian Rankin',
+            GenreId: (genres[0].id),
+            ISBN: 9781409176978,
+          }),
+          Book.create({ 
+            title: 'A Promised Land',
+            author: 'Barack Obama',
+            GenreId: (genres[1].id),
+            ISBN: 9780241491515,
+          }),
+          Book.create({ 
+            title: 'The Ickabog',
+            author: 'J. K. Rowling',
+            GenreId: (genres[2].id),
+            ISBN: 9781510202252,
+          }),
+        ]);        
+      } catch (err) {
+        console.log(err);
+      }
     });
 
     describe('GET /books', () => {
@@ -101,7 +131,8 @@ describe('/books', () => {
 
           expect(book.title).to.equal(expected.title);
           expect(book.author).to.equal(expected.author);
-          expect(book.genre).to.equal(expected.genre);
+          expect(book.GenreId).to.equal(expected.GenreId);
+          expect(book.Genre.id).to.equal(expected.GenreId);
           expect(book.ISBN).to.equal(expected.ISBN);
         });
       });
@@ -128,17 +159,17 @@ describe('/books', () => {
     });
 
     describe('PATCH /books/:id', () => {
-      it('updates books email by id', async () => {
+      it('updates books by id', async () => {
         const book = books[0];
         const response = await request(app)
           .patch(`/books/${book.id}`)
-          .send({ genre: 'thriller' });
+          .send({ title: 'New Title' });
         const updatedBookRecord = await Book.findByPk(book.id, {
           raw: true,
         });
 
         expect(response.status).to.equal(200);
-        expect(updatedBookRecord.genre).to.equal('thriller');
+        expect(updatedBookRecord.title).to.equal('New Title');
       });
 
       it('returns a 404 if the book does not exist', async () => {
@@ -160,7 +191,7 @@ describe('/books', () => {
           raw: true,
         });
 
-        expect(response.status).to.equal(404);
+        expect(response.status).to.equal(400);
         expect(response.body.error).to.include.members(['Title cannot be empty'])
         expect(updatedBookRecord.title).to.equal(originalTitle);
       })

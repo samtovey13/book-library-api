@@ -36,7 +36,7 @@ describe('/readers', () => {
           password: '',
         });
         
-        expect(response.status).to.equal(404);
+        expect(response.status).to.equal(400);
         expect(response.body.error).to.include.members(
           [
             'Name cannot be empty',
@@ -53,7 +53,7 @@ describe('/readers', () => {
           password: 'array-password',
         });
         
-        expect(response.status).to.equal(404);
+        expect(response.status).to.equal(400);
         expect(response.body.error).to.include.members(
           ['name cannot be an array or an object']
         );
@@ -66,7 +66,7 @@ describe('/readers', () => {
           password: '1',
         });
         
-        expect(response.status).to.equal(404);
+        expect(response.status).to.equal(400);
         expect(response.body.error).to.include.members(
           ['Password must have at least 8 characters']
         );
@@ -79,7 +79,7 @@ describe('/readers', () => {
           password: 'secret-password',
         });
         
-        expect(response.status).to.equal(404);
+        expect(response.status).to.equal(400);
         expect(response.body.error).to.include.members(
           ['Not a valid email']
         );
@@ -164,7 +164,7 @@ describe('/readers', () => {
         expect(response.body.error).to.equal('The reader could not be found.');
       });
 
-      it('returns a 404 if the new data is not validated', async () => {
+      it('returns a 400 if the new data is not validated', async () => {
         const reader = readers[0];
         const originalEmail = reader.email;
         const response = await request(app)
@@ -174,7 +174,7 @@ describe('/readers', () => {
           raw: true,
         });
 
-        expect(response.status).to.equal(404);
+        expect(response.status).to.equal(400);
         expect(response.body.error).to.include.members(['Not a valid email'])
         expect(updatedReaderRecord.email).to.equal(originalEmail);
       })
